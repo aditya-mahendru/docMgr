@@ -24,7 +24,7 @@ The system now includes a sophisticated vector pipeline that:
 - **Chunks Documents**: Breaks down text into optimal-sized chunks (500 tokens with 50 token overlap)
 - **Generates Embeddings**: Uses local sentence-transformers to create semantic vector representations
 - **Enables Semantic Search**: Find documents by meaning and context, not just exact text matches
-- **Supports Multiple Formats**: Currently supports `.txt` and `.md` files
+- **Supports Multiple Formats**: Currently supports `.txt`, `.md`, `.pdf`, and `.docx` files
 - **Scalable Architecture**: Built with ChromaDB for efficient vector storage and retrieval
 
 ## API Endpoints
@@ -125,14 +125,14 @@ The system now includes a sophisticated vector pipeline that:
    
    # Upload a single document
    curl -X POST "http://localhost:8000/api/documents/upload" \
-        -F "file=@/path/to/your/document.txt" \
+        -F "file=@/path/to/your/document.pdf" \
         -F "description=My important document"
    
    # Upload multiple documents
    curl -X POST "http://localhost:8000/api/documents/upload-multiple" \
-        -F "files=@/path/to/document1.txt" \
-        -F "files=@/path/to/document2.md" \
-        -F "files=@/path/to/document3.txt" \
+        -F "files=@/path/to/document1.pdf" \
+        -F "files=@/path/to/document2.docx" \
+        -F "files=@/path/to/document3.md" \
         -F "description=Bulk upload of multiple documents"
    
    # Semantic search
@@ -171,7 +171,9 @@ The system now includes a sophisticated vector pipeline that:
 
 - **Text Files** (`.txt`): Plain text documents
 - **Markdown Files** (`.md`): Markdown-formatted documents
-- **Future Support**: PDF, Word documents, and other formats
+- **PDF Files** (`.pdf`): Portable Document Format files with text extraction
+- **Word Documents** (`.docx`): Microsoft Word files with structured content extraction
+- **Future Support**: PowerPoint presentations, Excel spreadsheets, and other formats
 
 ### Chunking Strategy
 
@@ -260,11 +262,16 @@ curl -X POST "http://localhost:8000/api/search" \
 docMgr/
 ├── app.py                    # Main FastAPI application
 ├── requirements.txt          # Python dependencies
-├── vector_pipeline.py       # Vector processing and search
+├── repository/               # Repository layer
+│   ├── vector_pipeline.py   # Vector processing and search
+│   └── sqlDB.py             # Database operations
+├── models/                   # Data models and DTOs
 ├── test_api.py              # API testing script
 ├── test_multiple_upload.py  # Multiple upload testing script
 ├── test_vector_pipeline.py  # Vector pipeline testing script
 ├── test_sentence_transformers.py  # Sentence-transformers testing script
+├── test_pdf_support.py      # PDF testing script
+├── test_docx_support.py     # DOCX testing script
 ├── env_example.txt          # Environment variables template
 ├── README.md                # This file
 ├── uploads/                 # File storage directory (created automatically)
@@ -340,7 +347,7 @@ Check the console output for detailed error messages and API request logs.
 
 ## Future Enhancements
 
-- **Additional File Types**: PDF, Word documents, PowerPoint presentations
+- **Additional File Types**: PowerPoint presentations, Excel spreadsheets, and other Office formats
 - **Advanced Chunking**: Semantic chunking based on content structure
 - **Hybrid Search**: Combine semantic search with keyword-based filtering
 - **User Management**: Multi-user support with document access control

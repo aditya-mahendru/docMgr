@@ -31,17 +31,23 @@ except Exception as e:
 
 def get_supported_content_type(filename: str, original_content_type: str | None) -> str:
     """Determine the content type for a file, prioritizing file extension over MIME type"""
-    supported_types = ["text/plain", "text/markdown"]
+    supported_types = ["text/plain", "text/markdown", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
     file_extension = os.path.splitext(filename)[1].lower()
     
-    if file_extension in ['.txt', '.md']:
-        return "text/plain" if file_extension == '.txt' else "text/markdown"
+    if file_extension == '.txt':
+        return "text/plain"
+    elif file_extension == '.md':
+        return "text/markdown"
+    elif file_extension == '.pdf':
+        return "application/pdf"
+    elif file_extension == '.docx':
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     else:
         return original_content_type or "application/octet-stream"
 
 def is_vector_processable(content_type: str) -> bool:
     """Check if a content type can be processed by the vector pipeline"""
-    return content_type in ["text/plain", "text/markdown"]
+    return content_type in ["text/plain", "text/markdown", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
 
 def save_uploaded_file(file: UploadFile) -> tuple[str, str, int]:
     """Save an uploaded file and return the unique filename, file path and size"""

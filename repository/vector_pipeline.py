@@ -66,11 +66,97 @@ class VectorPipeline:
                     text = re.sub(r'<[^>]+>', '', html)
                     return text
             
+            elif content_type == "application/pdf" or file_path.endswith('.pdf'):
+                return self._extract_text_from_pdf(file_path)
+            
+            elif content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or file_path.endswith('.docx'):
+                return self._extract_text_from_docx(file_path)
+            
             else:
                 raise ValueError(f"Unsupported file type: {content_type}")
                 
         except Exception as e:
             raise Exception(f"Error extracting text from file: {str(e)}")
+    
+    def _extract_text_from_pdf(self, file_path: str) -> str:
+        """Extract text from PDF file using multiple methods for better results"""
+        try:
+            # Try pdfplumber first (better for complex layouts)
+            try:
+                import pdfplumber
+                with pdfplumber.open(file_path) as pdf:
+                    text_parts = []
+                    for page in pdf.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text_parts.append(page_text.strip())
+                    if text_parts:
+                        return '\n\n'.join(text_parts)
+            except ImportError:
+                pass
+            
+            # Fallback to PyPDF2
+            try:
+                import PyPDF2
+                with open(file_path, 'rb') as file:
+                    pdf_reader = PyPDF2.PdfReader(file)
+                    text_parts = []
+                    for page in pdf_reader.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text_parts.append(page_text.strip())
+                    if text_parts:
+                        return '\n\n'.join(text_parts)
+            except ImportError:
+                pass
+            
+            # If both methods fail, raise error
+            raise Exception("PDF text extraction failed - neither pdfplumber nor PyPDF2 available")
+            
+        except Exception as e:
+            raise Exception(f"Error extracting text from PDF: {str(e)}")
+    
+    def _extract_text_from_docx(self, file_path: str) -> str:
+        """Extract text from DOCX file using python-docx"""
+        try:
+            from docx import Document
+            
+            doc = Document(file_path)
+            text_parts = []
+            
+            # Extract text from paragraphs
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_parts.append(paragraph.text.strip())
+            
+            # Extract text from tables
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = []
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            row_text.append(cell.text.strip())
+                    if row_text:
+                        text_parts.append(' | '.join(row_text))
+            
+            # Extract text from headers and footers
+            for section in doc.sections:
+                for header in section.header.paragraphs:
+                    if header.text.strip():
+                        text_parts.append(header.text.strip())
+                for footer in section.footer.paragraphs:
+                    if footer.text.strip():
+                        text_parts.append(footer.text.strip())
+            
+            if text_parts:
+                return '\n\n'.join(text_parts)
+            else:
+                raise Exception("No text content found in DOCX file")
+                
+        except ImportError:
+            raise Exception("python-docx library not available for DOCX processing")
+        except Exception as e:
+            raise Exception(f"Error extracting text from DOCX: {str(e)}")
     
     def _chunk_text(self, text: str) -> List[str]:
         """Break text into chunks using LangChain splitter"""
