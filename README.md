@@ -1,26 +1,46 @@
 # Document Manager API
 
-A FastAPI-based document management system with SQLite backend that supports file upload, retrieval, listing, and deletion.
+A FastAPI-based document management system with SQLite backend that supports file upload, retrieval, listing, deletion, and **intelligent vector-based semantic search**.
 
 ## Features
 
-- **File Upload**: Upload documents with optional descriptions
+- **File Upload**: Upload single documents with optional descriptions
+- **Multiple File Upload**: Upload multiple documents at once (up to 10 files)
 - **Document Listing**: Get all uploaded documents
 - **Document Retrieval**: Get specific document details by ID
 - **Document Deletion**: Remove documents from the system
+- **Vector Pipeline**: Intelligent document processing with semantic search
+- **Text Chunking**: Automatic document segmentation for optimal processing
+- **Semantic Search**: Find documents by meaning, not just keywords
 - **SQLite Database**: Local database storage for document metadata
+- **ChromaDB Vector Store**: High-performance vector database for embeddings
 - **File Storage**: Secure file storage with unique filenames
 - **RESTful API**: Clean, REST-compliant endpoints
+
+## Vector Pipeline Features
+
+The system now includes a sophisticated vector pipeline that:
+
+- **Chunks Documents**: Breaks down text into optimal-sized chunks (500 tokens with 50 token overlap)
+- **Generates Embeddings**: Uses local sentence-transformers to create semantic vector representations
+- **Enables Semantic Search**: Find documents by meaning and context, not just exact text matches
+- **Supports Multiple Formats**: Currently supports `.txt` and `.md` files
+- **Scalable Architecture**: Built with ChromaDB for efficient vector storage and retrieval
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/` | API information and available endpoints |
-| `POST` | `/api/documents/upload` | Upload a new document |
+| `POST` | `/api/documents/upload` | Upload a single document |
+| `POST` | `/api/documents/upload-multiple` | Upload multiple documents (up to 10) |
 | `GET` | `/api/documents` | List all documents |
 | `GET` | `/api/documents/{id}` | Get document details by ID |
 | `DELETE` | `/api/documents/{id}` | Delete document by ID |
+| `POST` | `/api/search` | **NEW**: Semantic search across documents |
+| `GET` | `/api/documents/{id}/chunks` | **NEW**: Get document chunks and embeddings |
+| `GET` | `/api/vector/stats` | **NEW**: Get vector collection statistics |
+| `POST` | `/api/documents/{id}/reprocess` | **NEW**: Reprocess document through vector pipeline |
 
 ## Setup
 
@@ -28,6 +48,7 @@ A FastAPI-based document management system with SQLite backend that supports fil
 
 - Python 3.8+
 - pip (Python package installer)
+- **No external API keys required** (using local sentence-transformers)
 
 ### Installation
 
@@ -45,6 +66,15 @@ A FastAPI-based document management system with SQLite backend that supports fil
 3. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
+   ```
+
+4. **Set up environment variables (optional):**
+   ```bash
+   # Copy the example file (optional - no API keys required)
+   cp env_example.txt .env
+   
+   # Edit .env if you want to customize paths
+   # No API keys needed - using local sentence-transformers
    ```
 
 ## Usage
@@ -73,20 +103,48 @@ A FastAPI-based document management system with SQLite backend that supports fil
 
 ### Testing the API
 
-1. **Run the test script:**
+1. **Run the basic test script:**
    ```bash
    python test_api.py
    ```
 
-2. **Manual testing with curl:**
+2. **Test multiple document upload:**
+   ```bash
+   python test_multiple_upload.py
+   ```
+
+3. **Test vector pipeline functionality:**
+   ```bash
+   python test_vector_pipeline.py
+   ```
+
+4. **Manual testing with curl:**
    ```bash
    # Get API info
    curl http://localhost:8000/
    
-   # Upload a document
+   # Upload a single document
    curl -X POST "http://localhost:8000/api/documents/upload" \
-        -F "file=@/path/to/your/document.pdf" \
+        -F "file=@/path/to/your/document.txt" \
         -F "description=My important document"
+   
+   # Upload multiple documents
+   curl -X POST "http://localhost:8000/api/documents/upload-multiple" \
+        -F "files=@/path/to/document1.txt" \
+        -F "files=@/path/to/document2.md" \
+        -F "files=@/path/to/document3.txt" \
+        -F "description=Bulk upload of multiple documents"
+   
+   # Semantic search
+   curl -X POST "http://localhost:8000/api/search" \
+        -H "Content-Type: application/json" \
+        -d '{"query": "What is machine learning?", "n_results": 5}'
+   
+   # Get document chunks
+   curl http://localhost:8000/api/documents/1/chunks
+   
+   # Get vector statistics
+   curl http://localhost:8000/api/vector/stats
    
    # List all documents
    curl http://localhost:8000/api/documents
@@ -97,6 +155,30 @@ A FastAPI-based document management system with SQLite backend that supports fil
    # Delete document
    curl -X DELETE http://localhost:8000/api/documents/1
    ```
+
+## Vector Pipeline Architecture
+
+### Document Processing Flow
+
+1. **File Upload**: Document is uploaded and stored
+2. **Text Extraction**: Text content is extracted from supported file types
+3. **Chunking**: Text is split into optimal-sized chunks using LangChain
+4. **Embedding Generation**: Each chunk is converted to a vector using local sentence-transformers
+5. **Vector Storage**: Embeddings are stored in ChromaDB with metadata
+6. **Search Index**: Vector database enables semantic similarity search
+
+### Supported File Types
+
+- **Text Files** (`.txt`): Plain text documents
+- **Markdown Files** (`.md`): Markdown-formatted documents
+- **Future Support**: PDF, Word documents, and other formats
+
+### Chunking Strategy
+
+- **Chunk Size**: 500 tokens per chunk
+- **Overlap**: 50 tokens between chunks for context preservation
+- **Separators**: Intelligent splitting on paragraphs, sentences, and words
+- **Token Counting**: Uses tiktoken for accurate token measurement
 
 ## Database Schema
 
@@ -115,6 +197,13 @@ CREATE TABLE documents (
 );
 ```
 
+### Vector Database (ChromaDB)
+
+- **Collection**: "documents" with cosine similarity
+- **Metadata**: Document ID, chunk index, filename, content type, description
+- **Embeddings**: 1536-dimensional vectors (text-embedding-ada-002 model)
+- **Storage**: Persistent local storage in `./chroma_db/`
+
 ## File Storage
 
 - Files are stored in the `uploads/` directory
@@ -122,16 +211,65 @@ CREATE TABLE documents (
 - Original filenames are preserved in the database
 - File paths are stored relative to the application root
 
+## Multiple Document Upload
+
+The API supports uploading multiple documents simultaneously:
+
+- **Endpoint**: `POST /api/documents/upload-multiple`
+- **File Limit**: Maximum 10 files per request
+- **Response**: Includes count of successful uploads and any error details
+- **Error Handling**: Individual file failures don't prevent other files from uploading
+- **Transaction Safety**: Each file is processed independently with proper cleanup on failure
+
+**Response Format:**
+```json
+{
+  "message": "Upload completed. 3 files uploaded successfully.",
+  "uploaded_count": 3,
+  "documents": [...],
+  "errors": []
+}
+```
+
+## Semantic Search
+
+### Search Capabilities
+
+- **Natural Language Queries**: Ask questions in plain English
+- **Semantic Understanding**: Finds relevant content even without exact keyword matches
+- **Configurable Results**: Adjustable number of results (default: 5)
+- **Similarity Scoring**: Results ranked by semantic similarity (0.0 to 1.0)
+
+### Search Examples
+
+```bash
+# Find documents about AI
+curl -X POST "http://localhost:8000/api/search" \
+     -H "Content-Type: application/json" \
+     -d '{"query": "What is artificial intelligence?"}'
+
+# Find machine learning content
+curl -X POST "http://localhost:8000/api/search" \
+     -H "Content-Type: application/json" \
+     -d '{"query": "How does machine learning work?", "n_results": 10}'
+```
+
 ## Project Structure
 
 ```
 docMgr/
-├── app.py              # Main FastAPI application
-├── requirements.txt    # Python dependencies
-├── test_api.py        # API testing script
-├── README.md          # This file
-├── uploads/           # File storage directory (created automatically)
-└── documents.db       # SQLite database (created automatically)
+├── app.py                    # Main FastAPI application
+├── requirements.txt          # Python dependencies
+├── vector_pipeline.py       # Vector processing and search
+├── test_api.py              # API testing script
+├── test_multiple_upload.py  # Multiple upload testing script
+├── test_vector_pipeline.py  # Vector pipeline testing script
+├── test_sentence_transformers.py  # Sentence-transformers testing script
+├── env_example.txt          # Environment variables template
+├── README.md                # This file
+├── uploads/                 # File storage directory (created automatically)
+├── chroma_db/              # Vector database (created automatically)
+└── documents.db             # SQLite database (created automatically)
 ```
 
 ## Development
@@ -139,15 +277,17 @@ docMgr/
 ### Adding New Features
 
 - **New Endpoints**: Add new route functions in `app.py`
+- **Vector Processing**: Extend `vector_pipeline.py` for new file types
 - **Database Changes**: Modify the `Document` model and run the application to auto-create tables
 - **Validation**: Update Pydantic models for request/response validation
 
 ### Error Handling
 
 The API includes comprehensive error handling:
-- 400: Bad Request (e.g., missing file)
+- 400: Bad Request (e.g., missing file, unsupported file type)
 - 404: Not Found (e.g., document doesn't exist)
 - 500: Internal Server Error (database/file system issues)
+- 503: Service Unavailable (vector pipeline not available)
 
 ## Security Considerations
 
@@ -155,27 +295,57 @@ The API includes comprehensive error handling:
 - File content types are validated and stored
 - Database connections are properly managed with dependency injection
 - File operations include existence checks before deletion
+- No external API keys required - all processing done locally
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Port already in use:**
+1. **Vector pipeline not available:**
+   ```bash
+   # Check your dependencies installation
+   python setup.py
+   
+   # Make sure all required packages are installed
+   pip install -r requirements.txt
+   ```
+
+2. **Port already in use:**
    ```bash
    # Kill process using port 8000
    lsof -ti:8000 | xargs kill -9
    ```
 
-2. **Database locked:**
+3. **Database locked:**
    - Ensure only one instance of the app is running
    - Check file permissions on the database file
 
-3. **Upload directory issues:**
+4. **Upload directory issues:**
    - Ensure the application has write permissions to create the `uploads/` directory
+
+5. **ChromaDB errors:**
+   - Check if the `chroma_db/` directory has proper permissions
+   - Restart the application to reinitialize the vector database
 
 ### Logs
 
 Check the console output for detailed error messages and API request logs.
+
+## Performance Considerations
+
+- **Chunk Size**: 500 tokens provides good balance between context and search precision
+- **Embedding Model**: all-MiniLM-L6-v2 offers excellent quality with local processing
+- **Vector Database**: ChromaDB provides fast similarity search with local persistence
+- **Batch Processing**: Multiple uploads are processed sequentially for reliability
+
+## Future Enhancements
+
+- **Additional File Types**: PDF, Word documents, PowerPoint presentations
+- **Advanced Chunking**: Semantic chunking based on content structure
+- **Hybrid Search**: Combine semantic search with keyword-based filtering
+- **User Management**: Multi-user support with document access control
+- **API Rate Limiting**: Protect against abuse and manage resource usage
+- **Caching**: Redis-based caching for frequently accessed embeddings
 
 ## License
 

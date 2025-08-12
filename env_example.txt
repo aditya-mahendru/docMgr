@@ -1,0 +1,9 @@
+# Document Manager API Environment Variables
+
+# Note: No API keys required - using local sentence-transformers for embeddings
+
+# Upload directory (optional, defaults to "uploads")
+UPLOAD_DIR=uploads
+
+# Database path (optional, defaults to "documents.db")
+DATABASE_PATH=documents.db

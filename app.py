@@ -1,14 +1,16 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import FileResponse
-from datetime import datetime
 import os
 import shutil
 from typing import List
 import uuid
-import json
-from models import DocumentResponse, DocumentUpload
+from models.document import DocumentResponse, BulkUploadResponse
+from models.chunk import SearchResult, DocumentChunk
+from models.dataModels import SearchQuery, CollectionStats
 from db import get_db_connection, init_db
+from repository.vector_pipeline import VectorPipeline
 from dotenv import load_dotenv
+from repository.sqlDB import create_document_record, get_document_by_id
+from models.documentDto import create_document_response
 
 #Initialize database and create FastAPI app
 app = FastAPI(title="Document Manager API", version="1.0.0")
@@ -19,18 +21,35 @@ init_db()
 UPLOAD_DIR = os.getenv("UPLOAD_DIR") or "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-@app.post("/api/documents/upload", response_model=DocumentResponse)
-async def upload_document(
-    file: UploadFile = File(...),
-    description: str | None = None
-):
-    """Upload a new document"""
+# Initialize vector pipeline
+try:
+    vector_pipeline = VectorPipeline()
+    VECTOR_PIPELINE_AVAILABLE = True
+except Exception as e:
+    print(f"Warning: Vector pipeline not available: {e}")
+    VECTOR_PIPELINE_AVAILABLE = False
+
+def get_supported_content_type(filename: str, original_content_type: str | None) -> str:
+    """Determine the content type for a file, prioritizing file extension over MIME type"""
+    supported_types = ["text/plain", "text/markdown"]
+    file_extension = os.path.splitext(filename)[1].lower()
+    
+    if file_extension in ['.txt', '.md']:
+        return "text/plain" if file_extension == '.txt' else "text/markdown"
+    else:
+        return original_content_type or "application/octet-stream"
+
+def is_vector_processable(content_type: str) -> bool:
+    """Check if a content type can be processed by the vector pipeline"""
+    return content_type in ["text/plain", "text/markdown"]
+
+def save_uploaded_file(file: UploadFile) -> tuple[str, str, int]:
+    """Save an uploaded file and return the unique filename, file path and size"""
     if not file.filename:
-        raise HTTPException(status_code=400, detail="No file provided")
+        raise HTTPException(status_code=400, detail="No filename provided")
     
     # Generate unique filename
-    file_extension = os.path.splitext(file.filename)[1]
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    unique_filename = f"{uuid.uuid4()}{os.path.splitext(file.filename)[1]}"
     file_path = os.path.join(UPLOAD_DIR, unique_filename)
     
     # Save file to disk
@@ -40,32 +59,90 @@ async def upload_document(
     # Get file size
     file_size = os.path.getsize(file_path)
     
+    return unique_filename, file_path, file_size
+
+
+
+def process_single_document(file: UploadFile, description: str | None = None) -> DocumentResponse:
+    """Process a single document upload with vector processing"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+    
+    # Determine content type
+    content_type = get_supported_content_type(file.filename, file.content_type)
+    
+    # Save file to disk and get unique filename, file path and size
+    unique_filename, file_path, file_size = save_uploaded_file(file)
+    
     # Create document record
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    document_id = create_document_record(unique_filename, file.filename, file_path, file_size, content_type, description)
     
-    cursor.execute('''
-        INSERT INTO documents (filename, original_filename, file_path, file_size, content_type, description)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (unique_filename, file.filename, file_path, file_size, file.content_type or "application/octet-stream", description))
-    
-    document_id = cursor.lastrowid
-    conn.commit()
+    # Process through vector pipeline if available and supported
+    processing_result = process_document_with_vector_pipeline(file_path, content_type, document_id, file.filename, description)
     
     # Get the created document
-    cursor.execute('SELECT * FROM documents WHERE id = ?', (document_id,))
-    document = cursor.fetchone()
-    conn.close()
+    document = get_document_by_id(document_id)
     
-    return DocumentResponse(
-        id=document['id'],
-        filename=document['filename'],
-        original_filename=document['original_filename'],
-        file_path=document['file_path'],
-        file_size=document['file_size'],
-        content_type=document['content_type'],
-        upload_date=document['upload_date'],
-        description=document['description']
+    # Create and return response
+    return create_document_response(document, processing_result)
+
+def process_document_with_vector_pipeline(file_path: str, content_type: str, document_id: int, 
+                                        original_filename: str, description: str | None) -> dict | None:
+    """Process a document through the vector pipeline if available and supported"""
+    if not VECTOR_PIPELINE_AVAILABLE or not is_vector_processable(content_type):
+        return None
+    
+    try:
+        return vector_pipeline.process_document(
+            file_path, content_type, document_id, original_filename, description
+        )
+    except Exception as e:
+        print(f"Warning: Vector processing failed for document {document_id}: {e}")
+        return None
+
+
+@app.post("/api/documents/upload", response_model=DocumentResponse)
+async def upload_document(
+    file: UploadFile = File(...),
+    description: str | None = None
+):
+    """Upload a new document"""
+    return process_single_document(file, description)
+
+@app.post("/api/documents/upload-multiple", response_model=BulkUploadResponse)
+async def upload_multiple_documents(
+    files: List[UploadFile] = File(...),
+    description: str | None = None
+):
+    """Upload multiple documents at once"""
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
+    
+    if len(files) > 10:  # Limit to 10 files per request
+        raise HTTPException(status_code=400, detail="Maximum 10 files allowed per request")
+    
+    uploaded_documents = []
+    errors = []
+    
+    for file in files:
+        try:
+            if not file.filename:
+                errors.append(f"File {file.filename or 'unnamed'}: No filename provided")
+                continue
+            
+            # Process the document using the reusable function
+            doc_response = process_single_document(file, description)
+            uploaded_documents.append(doc_response)
+            
+        except Exception as e:
+            errors.append(f"File {file.filename}: {str(e)}")
+            # Note: Cleanup is handled within process_single_document function
+    
+    return BulkUploadResponse(
+        message=f"Upload completed. {len(uploaded_documents)} files uploaded successfully.",
+        uploaded_count=len(uploaded_documents),
+        documents=uploaded_documents,
+        errors=errors
     )
 
 @app.get("/api/documents", response_model=List[DocumentResponse])
@@ -95,15 +172,7 @@ async def get_documents():
 @app.get("/api/documents/{document_id}", response_model=DocumentResponse)
 async def get_document(document_id: int):
     """Get a specific document by ID"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM documents WHERE id = ?', (document_id,))
-    document = cursor.fetchone()
-    conn.close()
-    
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
+    document = get_document_by_id(document_id)
     
     return DocumentResponse(
         id=document['id'],
@@ -119,40 +188,121 @@ async def get_document(document_id: int):
 @app.delete("/api/documents/{document_id}")
 async def delete_document(document_id: int):
     """Delete a document by ID"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    document = get_document_by_id(document_id)
     
-    # Get document info before deletion
-    cursor.execute('SELECT * FROM documents WHERE id = ?', (document_id,))
-    document = cursor.fetchone()
-    
-    if not document:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Document not found")
+    # Delete from vector database if available
+    if VECTOR_PIPELINE_AVAILABLE:
+        try:
+            vector_pipeline.delete_document_chunks(document_id)
+        except Exception as e:
+            print(f"Warning: Failed to delete vector chunks for document {document_id}: {e}")
     
     # Delete file from disk
     if os.path.exists(document['file_path']):
         os.remove(document['file_path'])
     
     # Delete from database
+    conn = get_db_connection()
+    cursor = conn.cursor()
     cursor.execute('DELETE FROM documents WHERE id = ?', (document_id,))
     conn.commit()
     conn.close()
     
     return {"message": "Document deleted successfully"}
 
+# Vector pipeline endpoints
+@app.post("/api/search", response_model=List[SearchResult])
+async def search_documents(query: SearchQuery):
+    """Search documents by semantic similarity"""
+    if not VECTOR_PIPELINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Vector pipeline not available")
+    
+    try:
+        results = vector_pipeline.search_documents(query.query, query.n_results)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+@app.get("/api/documents/{document_id}/chunks", response_model=List[DocumentChunk])
+async def get_document_chunks(document_id: int):
+    """Get all chunks for a specific document"""
+    if not VECTOR_PIPELINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Vector pipeline not available")
+    
+    try:
+        chunks = vector_pipeline.get_document_chunks(document_id)
+        return chunks
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve chunks: {str(e)}")
+
+@app.get("/api/vector/stats", response_model=CollectionStats)
+async def get_vector_stats():
+    """Get statistics about the vector collection"""
+    if not VECTOR_PIPELINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Vector pipeline not available")
+    
+    try:
+        stats = vector_pipeline.get_collection_stats()
+        return CollectionStats(**stats)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
+
+@app.post("/api/documents/{document_id}/reprocess")
+async def reprocess_document(document_id: int):
+    """Reprocess a document through the vector pipeline"""
+    if not VECTOR_PIPELINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Vector pipeline not available")
+    
+    # Get document info
+    document = get_document_by_id(document_id)
+    
+    # Check if file type is supported
+    supported_types = ["text/plain", "text/markdown"]
+    if document['content_type'] not in supported_types:
+        raise HTTPException(status_code=400, detail="Document type not supported for vector processing")
+    
+    try:
+        # Delete existing chunks
+        vector_pipeline.delete_document_chunks(document_id)
+        
+        # Reprocess document
+        result = vector_pipeline.process_document(
+            document['file_path'],
+            document['content_type'],
+            document_id,
+            document['original_filename'],
+            document['description']
+        )
+        
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Reprocessing failed: {str(e)}")
+
 @app.get("/")
 async def root():
     """Root endpoint with API information"""
+    endpoints = {
+        "upload_single": "POST /api/documents/upload",
+        "upload_multiple": "POST /api/documents/upload-multiple",
+        "list": "GET /api/documents",
+        "get": "GET /api/documents/{id}",
+        "delete": "DELETE /api/documents/{id}"
+    }
+    
+    # Add vector pipeline endpoints if available
+    if VECTOR_PIPELINE_AVAILABLE:
+        endpoints.update({
+            "search": "POST /api/search",
+            "chunks": "GET /api/documents/{id}/chunks",
+            "vector_stats": "GET /api/vector/stats",
+            "reprocess": "POST /api/documents/{id}/reprocess"
+        })
+    
     return {
         "message": "Document Manager API",
         "version": "1.0.0",
-        "endpoints": {
-            "upload": "POST /api/documents/upload",
-            "list": "GET /api/documents",
-            "get": "GET /api/documents/{id}",
-            "delete": "DELETE /api/documents/{id}"
-        }
+        "vector_pipeline": VECTOR_PIPELINE_AVAILABLE,
+        "endpoints": endpoints
     }
 
 if __name__ == "__main__":

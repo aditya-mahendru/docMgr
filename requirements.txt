@@ -1,5 +1,14 @@
 fastapi==0.104.1
-uvicorn[standard]==0.24.0
+uvicorn[standard]
 python-multipart==0.0.6
 pydantic>=2.6.0
 requests==2.31.0
+# Vector pipeline dependencies
+chromadb==0.4.22
+sentence-transformers
+langchain
+langchain-text-splitters
+python-dotenv==1.0.0
+tiktoken==0.5.2
+markdown==3.5.2
+scikit-learn>=1.0.0
