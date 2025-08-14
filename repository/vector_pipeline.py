@@ -72,6 +72,9 @@ class VectorPipeline:
             elif content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or file_path.endswith('.docx'):
                 return self._extract_text_from_docx(file_path)
             
+            elif content_type.startswith("image/") or file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff')):
+                return self._extract_text_from_image(file_path)
+            
             else:
                 raise ValueError(f"Unsupported file type: {content_type}")
                 
@@ -157,6 +160,90 @@ class VectorPipeline:
             raise Exception("python-docx library not available for DOCX processing")
         except Exception as e:
             raise Exception(f"Error extracting text from DOCX: {str(e)}")
+    
+    def _extract_text_from_image(self, file_path: str) -> str:
+        """Extract text from image using OCR and generate description using Groq API"""
+        try:
+            import os
+            from PIL import Image
+            import pytesseract
+            import cv2
+            from groq import Groq
+            
+            # Check if Groq API key is available
+            groq_api_key = os.getenv("GROQ_API_KEY")
+            if not groq_api_key:
+                raise Exception("GROQ_API_KEY environment variable not set")
+            
+            # Initialize Groq client
+            groq_client = Groq(api_key=groq_api_key)
+            
+            # Load and preprocess image
+            image = cv2.imread(file_path)
+            if image is None:
+                raise Exception("Could not load image file")
+            
+            # Convert to grayscale for better OCR
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # Apply preprocessing for better OCR results
+            # Denoise
+            denoised = cv2.fastNlMeansDenoising(gray)
+            
+            # Increase contrast
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+            enhanced = clahe.apply(denoised)
+            
+            # OCR extraction
+            ocr_text = pytesseract.image_to_string(enhanced, config='--psm 6')
+            
+            if not ocr_text.strip():
+                # Try with different PSM modes if no text found
+                ocr_text = pytesseract.image_to_string(enhanced, config='--psm 3')
+            
+            # Generate detailed description using Groq API
+            prompt = f"""
+            Analyze this OCR text from an image and provide a detailed, structured description.
+            The image likely contains text, tables, bills, receipts, or other documents.
+            
+            OCR Text: {ocr_text}  # Limit to avoid token limits
+            
+            Please provide:
+            1. A detailed description of what this document appears to be including items, amounts, dates, type of payment, etc.
+            2. Key information extracted (dates, amounts, names, etc.)
+            3. Any tables or structured data identified
+            4. Overall document type and purpose
+            
+            Format your response as clear, searchable text that can be used for document retrieval.
+            """
+            
+            try:
+                response = groq_client.chat.completions.create(
+                    model="openai/gpt-oss-20b",  # Using GPT OSS 20B for better performance
+                    messages=[
+                        {"role": "system", "content": "You are a document analysis expert. Provide clear, structured descriptions of documents based on OCR text."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=1000,
+                    temperature=0.3
+                )
+                
+                groq_description = response.choices[0].message.content.strip()
+                
+                # Combine OCR text and Groq description
+                combined_text = f"OCR Text:\n{ocr_text}\n\nAI Description:\n{groq_description}"
+                
+                return combined_text
+                
+            except Exception as groq_error:
+                print(f"Warning: Groq API call failed: {groq_error}")
+                # Fallback to just OCR text if Groq fails
+                return f"OCR Text:\n{ocr_text}\n\nNote: AI description generation failed"
+                
+        except ImportError as e:
+            raise Exception(f"Required library not available: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Error processing image: {str(e)}")
     
     def _chunk_text(self, text: str) -> List[str]:
         """Break text into chunks using LangChain splitter"""

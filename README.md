@@ -12,6 +12,7 @@ A FastAPI-based document management system with SQLite backend that supports fil
 - **Vector Pipeline**: Intelligent document processing with semantic search
 - **Text Chunking**: Automatic document segmentation for optimal processing
 - **Semantic Search**: Find documents by meaning, not just keywords
+- **Image Processing**: OCR extraction and AI-powered description generation
 - **SQLite Database**: Local database storage for document metadata
 - **ChromaDB Vector Store**: High-performance vector database for embeddings
 - **File Storage**: Secure file storage with unique filenames
@@ -48,7 +49,9 @@ The system now includes a sophisticated vector pipeline that:
 
 - Python 3.8+
 - pip (Python package installer)
-- **No external API keys required** (using local sentence-transformers)
+- **Tesseract OCR** installed on your system (for image processing)
+- **Groq API key** (for AI-powered image description generation)
+- **No external API keys required for text processing** (using local sentence-transformers)
 
 ### Installation
 
@@ -68,13 +71,28 @@ The system now includes a sophisticated vector pipeline that:
    pip install -r requirements.txt
    ```
 
-4. **Set up environment variables (optional):**
+4. **Set up environment variables:**
    ```bash
-   # Copy the example file (optional - no API keys required)
+   # Copy the example file
    cp env_example.txt .env
    
-   # Edit .env if you want to customize paths
-   # No API keys needed - using local sentence-transformers
+   # Edit .env to add your Groq API key for image processing
+   # GROQ_API_KEY=your_groq_api_key_here
+   ```
+
+5. **Install Tesseract OCR (required for image processing):**
+   ```bash
+   # macOS
+   brew install tesseract
+   
+   # Ubuntu/Debian
+   sudo apt-get install tesseract-ocr
+   
+   # Windows
+   # Download from https://github.com/UB-Mannheim/tesseract/wiki
+   
+   # Or use the automated setup script:
+   python setup_image_processing.py
    ```
 
 ## Usage
@@ -118,6 +136,16 @@ The system now includes a sophisticated vector pipeline that:
    python test_vector_pipeline.py
    ```
 
+4. **Test image processing setup:**
+   ```bash
+   python test_image_processing.py
+   ```
+
+5. **Test image upload and processing:**
+   ```bash
+   python test_image_upload.py
+   ```
+
 4. **Manual testing with curl:**
    ```bash
    # Get API info
@@ -134,6 +162,11 @@ The system now includes a sophisticated vector pipeline that:
         -F "files=@/path/to/document2.docx" \
         -F "files=@/path/to/document3.md" \
         -F "description=Bulk upload of multiple documents"
+   
+   # Upload an image for OCR processing
+   curl -X POST "http://localhost:8000/api/documents/upload" \
+        -F "file=@/path/to/your/image.jpg" \
+        -F "description=Receipt for expense tracking"
    
    # Semantic search
    curl -X POST "http://localhost:8000/api/search" \
@@ -162,10 +195,22 @@ The system now includes a sophisticated vector pipeline that:
 
 1. **File Upload**: Document is uploaded and stored
 2. **Text Extraction**: Text content is extracted from supported file types
+   - **Text/PDF/DOCX**: Direct text extraction
+   - **Images**: OCR processing + AI-powered description generation via Groq API
 3. **Chunking**: Text is split into optimal-sized chunks using LangChain
 4. **Embedding Generation**: Each chunk is converted to a vector using local sentence-transformers
 5. **Vector Storage**: Embeddings are stored in ChromaDB with metadata
 6. **Search Index**: Vector database enables semantic similarity search
+
+### Image Processing Pipeline
+
+For image files, the system uses a sophisticated processing pipeline:
+
+1. **Image Preprocessing**: OpenCV-based enhancement (denoising, contrast adjustment)
+2. **OCR Extraction**: Tesseract OCR for text extraction with multiple PSM modes
+3. **AI Analysis**: Groq API integration with GPT OSS 20B for intelligent document analysis and description
+4. **Content Combination**: OCR text + AI description for comprehensive search indexing
+5. **Vector Processing**: Combined content is chunked and embedded like text documents
 
 ### Supported File Types
 
@@ -173,6 +218,7 @@ The system now includes a sophisticated vector pipeline that:
 - **Markdown Files** (`.md`): Markdown-formatted documents
 - **PDF Files** (`.pdf`): Portable Document Format files with text extraction
 - **Word Documents** (`.docx`): Microsoft Word files with structured content extraction
+- **Image Files** (`.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.tiff`): OCR processing with AI-powered description generation
 - **Future Support**: PowerPoint presentations, Excel spreadsheets, and other formats
 
 ### Chunking Strategy
@@ -272,6 +318,8 @@ docMgr/
 ├── test_sentence_transformers.py  # Sentence-transformers testing script
 ├── test_pdf_support.py      # PDF testing script
 ├── test_docx_support.py     # DOCX testing script
+├── test_image_processing.py # Image processing setup testing script
+├── test_image_upload.py     # Image upload and processing testing script
 ├── env_example.txt          # Environment variables template
 ├── README.md                # This file
 ├── uploads/                 # File storage directory (created automatically)
@@ -302,7 +350,8 @@ The API includes comprehensive error handling:
 - File content types are validated and stored
 - Database connections are properly managed with dependency injection
 - File operations include existence checks before deletion
-- No external API keys required - all processing done locally
+- **Image Processing**: OCR and AI analysis done locally with secure API calls to Groq
+- **API Key Security**: Groq API key stored in environment variables, never in code
 
 ## Troubleshooting
 
@@ -315,6 +364,18 @@ The API includes comprehensive error handling:
    
    # Make sure all required packages are installed
    pip install -r requirements.txt
+   ```
+
+2. **Image processing not working:**
+   ```bash
+   # Check if Tesseract is installed
+   tesseract --version
+   
+   # Check if Groq API key is set
+   echo $GROQ_API_KEY
+   
+   # Test image processing setup
+   python test_image_processing.py
    ```
 
 2. **Port already in use:**

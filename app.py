@@ -31,7 +31,7 @@ except Exception as e:
 
 def get_supported_content_type(filename: str, original_content_type: str | None) -> str:
     """Determine the content type for a file, prioritizing file extension over MIME type"""
-    supported_types = ["text/plain", "text/markdown", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+    supported_types = ["text/plain", "text/markdown", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/png", "image/jpeg", "image/gif", "image/bmp", "image/tiff"]
     file_extension = os.path.splitext(filename)[1].lower()
     
     if file_extension == '.txt':
@@ -42,12 +42,25 @@ def get_supported_content_type(filename: str, original_content_type: str | None)
         return "application/pdf"
     elif file_extension == '.docx':
         return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif file_extension in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff']:
+        if file_extension == '.png':
+            return "image/png"
+        elif file_extension in ['.jpg', '.jpeg']:
+            return "image/jpeg"
+        elif file_extension == '.gif':
+            return "image/gif"
+        elif file_extension == '.bmp':
+            return "image/bmp"
+        elif file_extension == '.tiff':
+            return "image/tiff"
+        else:
+            return "image/jpeg"  # Default fallback for image files
     else:
         return original_content_type or "application/octet-stream"
 
 def is_vector_processable(content_type: str) -> bool:
     """Check if a content type can be processed by the vector pipeline"""
-    return content_type in ["text/plain", "text/markdown", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+    return content_type in ["text/plain", "text/markdown", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] or content_type.startswith("image/")
 
 def save_uploaded_file(file: UploadFile) -> tuple[str, str, int]:
     """Save an uploaded file and return the unique filename, file path and size"""
