@@ -17,5 +17,14 @@ PyPDF2>=3.0.0
 pdfplumber>=0.9.0
 # DOCX processing
 python-docx>=0.8.11
+# Image processing and OCR
+Pillow>=10.0.0
+pytesseract>=0.3.10
+opencv-python>=4.8.0
+# Groq API
+groq>=0.4.0
 # Testing utilities
 reportlab>=4.0.0
+
+# User management and authentication
+email-validator>=2.0.0

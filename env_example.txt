@@ -7,3 +7,6 @@ UPLOAD_DIR=uploads
 
 # Database path (optional, defaults to "documents.db")
 DATABASE_PATH=documents.db
+
+# Groq API key for image description generation (required for image processing)
+GROQ_API_KEY=your_groq_api_key_here

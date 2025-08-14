@@ -208,7 +208,7 @@ For image files, the system uses a sophisticated processing pipeline:
 
 1. **Image Preprocessing**: OpenCV-based enhancement (denoising, contrast adjustment)
 2. **OCR Extraction**: Tesseract OCR for text extraction with multiple PSM modes
-3. **AI Analysis**: Groq API integration with GPT OSS 20B for intelligent document analysis and description
+3. **AI Analysis**: Groq API integration for intelligent document analysis and description
 4. **Content Combination**: OCR text + AI description for comprehensive search indexing
 5. **Vector Processing**: Combined content is chunked and embedded like text documents
 
