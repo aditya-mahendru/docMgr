@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 import os
 import shutil
 from typing import List
@@ -17,6 +18,16 @@ from repository.chat_manager import ChatManager
 from repository.auth_dependencies import get_current_user, get_current_active_user
 #Initialize database and create FastAPI app
 app = FastAPI(title="Document Manager API", version="1.0.0")
+
+# Add CORS middleware to allow requests from all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
+
 load_dotenv()
 init_db()
 user_manager = UserManager()
