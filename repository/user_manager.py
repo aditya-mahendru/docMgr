@@ -96,7 +96,7 @@ class UserManager:
             
             if not user:
                 conn.close()
-                return {"success": False, "error": "Invalid credentials"}
+                return {"success": False, "error": "Invalid credentials", "status_code": 401}
             
             if not user['is_active']:
                 conn.close()

@@ -11,11 +11,16 @@ from repository.vector_pipeline import VectorPipeline
 from dotenv import load_dotenv
 from repository.sqlDB import create_document_record, get_document_by_id
 from models.documentDto import create_document_response
-
+from models.user_models import UserRegistration,AuthResponse, UserResponse
+from repository.user_manager import UserManager
+from repository.chat_manager import ChatManager
+from repository.auth_dependencies import get_current_user, get_current_active_user
 #Initialize database and create FastAPI app
 app = FastAPI(title="Document Manager API", version="1.0.0")
 load_dotenv()
 init_db()
+user_manager = UserManager()
+chat_manager = ChatManager(user_manager=user_manager)
 
 # Create uploads directory if it doesn't exist
 UPLOAD_DIR = os.getenv("UPLOAD_DIR") or "uploads"
@@ -296,6 +301,49 @@ async def reprocess_document(document_id: int):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Reprocessing failed: {str(e)}")
+    
+@app.post("/api/auth/register")
+async def register_user(user: UserRegistration):
+    """Register a new user"""
+    try:
+        res = user_manager.create_user(user.username, user.email, user.password)
+        if res['error']:
+            raise HTTPException(status_code=400, detail=res['error'])
+        return {"message": "User registered successfully", "user_id": res['user_id']}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+        
+
+@app.post("/api/auth/login")
+async def login_user(user: UserRegistration):
+    """User login"""
+    try: 
+        res = user_manager.authenticate_user(user.username, user.password)
+        if res['error'] and res['status_code'] == 401:
+            raise HTTPException(status_code=401, detail=res['error'])
+        if res['error']:
+            raise HTTPException(status_code=500, detail=res['error'])
+        return AuthResponse(
+            success=True,
+            user=res['user'],
+            session_token=res['session_token'],
+            expires_at=res['expires_at'],
+            error=None
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
+    
+@app.get("/api/auth/profile", response_model=UserResponse)
+async def get_user_profile(session_token: str):
+    """Get user profile information"""
+    try:
+        res = user_manager.validate_session(session_token)
+        if not res:
+            raise HTTPException(status_code=401, detail="Invalid session token")
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve profile: {str(e)}")
+
 
 @app.get("/")
 async def root():
