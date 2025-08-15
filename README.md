@@ -1,420 +1,282 @@
-# Document Manager API
+# Document Manager (DocMgr)
 
-A FastAPI-based document management system with SQLite backend that supports file upload, retrieval, listing, deletion, and **intelligent vector-based semantic search**.
+A powerful document management system with AI-powered semantic search, OCR processing, and vector-based document analysis. Built with FastAPI, SQLite, and ChromaDB for intelligent document processing and retrieval.
 
-## Features
+## 🚀 Features
 
-- **File Upload**: Upload single documents with optional descriptions
-- **Multiple File Upload**: Upload multiple documents at once (up to 10 files)
-- **Document Listing**: Get all uploaded documents
-- **Document Retrieval**: Get specific document details by ID
-- **Document Deletion**: Remove documents from the system
-- **Vector Pipeline**: Intelligent document processing with semantic search
-- **Text Chunking**: Automatic document segmentation for optimal processing
-- **Semantic Search**: Find documents by meaning, not just keywords
-- **Image Processing**: OCR extraction and AI-powered description generation
-- **SQLite Database**: Local database storage for document metadata
-- **ChromaDB Vector Store**: High-performance vector database for embeddings
-- **File Storage**: Secure file storage with unique filenames
-- **RESTful API**: Clean, REST-compliant endpoints
+- **📁 File Management**: Upload, retrieve, list, and delete documents
+- **🔍 Semantic Search**: AI-powered search across document content using vector embeddings
+- **📸 Image Processing**: OCR extraction and AI-powered description generation
+- **🧠 Vector Pipeline**: Intelligent document chunking and semantic indexing
+- **📊 Multiple Formats**: Support for PDF, DOCX, TXT, MD, and image files
+- **⚡ Fast API**: RESTful endpoints with async processing
+- **💾 Local Storage**: SQLite database + ChromaDB vector store
+- **🔐 User Management**: Authentication and authorization system
 
-## Vector Pipeline Features
-
-The system now includes a sophisticated vector pipeline that:
-
-- **Chunks Documents**: Breaks down text into optimal-sized chunks (500 tokens with 50 token overlap)
-- **Generates Embeddings**: Uses local sentence-transformers to create semantic vector representations
-- **Enables Semantic Search**: Find documents by meaning and context, not just exact text matches
-- **Supports Multiple Formats**: Currently supports `.txt`, `.md`, `.pdf`, and `.docx` files
-- **Scalable Architecture**: Built with ChromaDB for efficient vector storage and retrieval
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | API information and available endpoints |
-| `POST` | `/api/documents/upload` | Upload a single document |
-| `POST` | `/api/documents/upload-multiple` | Upload multiple documents (up to 10) |
-| `GET` | `/api/documents` | List all documents |
-| `GET` | `/api/documents/{id}` | Get document details by ID |
-| `DELETE` | `/api/documents/{id}` | Delete document by ID |
-| `POST` | `/api/search` | **NEW**: Semantic search across documents |
-| `GET` | `/api/documents/{id}/chunks` | **NEW**: Get document chunks and embeddings |
-| `GET` | `/api/vector/stats` | **NEW**: Get vector collection statistics |
-| `POST` | `/api/documents/{id}/reprocess` | **NEW**: Reprocess document through vector pipeline |
-
-## Setup
-
-### Prerequisites
-
-- Python 3.8+
-- pip (Python package installer)
-- **Tesseract OCR** installed on your system (for image processing)
-- **Groq API key** (for AI-powered image description generation)
-- **No external API keys required for text processing** (using local sentence-transformers)
-
-### Installation
-
-1. **Clone or navigate to the project directory:**
-   ```bash
-   cd docMgr
-   ```
-
-2. **Create and activate a virtual environment:**
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Set up environment variables:**
-   ```bash
-   # Copy the example file
-   cp env_example.txt .env
-   
-   # Edit .env to add your Groq API key for image processing
-   # GROQ_API_KEY=your_groq_api_key_here
-   ```
-
-5. **Install Tesseract OCR (required for image processing):**
-   ```bash
-   # macOS
-   brew install tesseract
-   
-   # Ubuntu/Debian
-   sudo apt-get install tesseract-ocr
-   
-   # Windows
-   # Download from https://github.com/UB-Mannheim/tesseract/wiki
-   
-   # Or use the automated setup script:
-   python setup_image_processing.py
-   ```
-
-## Usage
-
-### Starting the Server
-
-1. **Activate your virtual environment** (if not already active):
-   ```bash
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-2. **Run the FastAPI application:**
-   ```bash
-   python app.py
-   ```
-
-   Or alternatively:
-   ```bash
-   uvicorn app:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-3. **Access the API:**
-   - API will be available at: http://localhost:8000
-   - Interactive API docs (Swagger UI): http://localhost:8000/docs
-   - Alternative API docs (ReDoc): http://localhost:8000/redoc
-
-### Testing the API
-
-1. **Run the basic test script:**
-   ```bash
-   python test_api.py
-   ```
-
-2. **Test multiple document upload:**
-   ```bash
-   python test_multiple_upload.py
-   ```
-
-3. **Test vector pipeline functionality:**
-   ```bash
-   python test_vector_pipeline.py
-   ```
-
-4. **Test image processing setup:**
-   ```bash
-   python test_image_processing.py
-   ```
-
-5. **Test image upload and processing:**
-   ```bash
-   python test_image_upload.py
-   ```
-
-4. **Manual testing with curl:**
-   ```bash
-   # Get API info
-   curl http://localhost:8000/
-   
-   # Upload a single document
-   curl -X POST "http://localhost:8000/api/documents/upload" \
-        -F "file=@/path/to/your/document.pdf" \
-        -F "description=My important document"
-   
-   # Upload multiple documents
-   curl -X POST "http://localhost:8000/api/documents/upload-multiple" \
-        -F "files=@/path/to/document1.pdf" \
-        -F "files=@/path/to/document2.docx" \
-        -F "files=@/path/to/document3.md" \
-        -F "description=Bulk upload of multiple documents"
-   
-   # Upload an image for OCR processing
-   curl -X POST "http://localhost:8000/api/documents/upload" \
-        -F "file=@/path/to/your/image.jpg" \
-        -F "description=Receipt for expense tracking"
-   
-   # Semantic search
-   curl -X POST "http://localhost:8000/api/search" \
-        -H "Content-Type: application/json" \
-        -d '{"query": "What is machine learning?", "n_results": 5}'
-   
-   # Get document chunks
-   curl http://localhost:8000/api/documents/1/chunks
-   
-   # Get vector statistics
-   curl http://localhost:8000/api/vector/stats
-   
-   # List all documents
-   curl http://localhost:8000/api/documents
-   
-   # Get specific document
-   curl http://localhost:8000/api/documents/1
-   
-   # Delete document
-   curl -X DELETE http://localhost:8000/api/documents/1
-   ```
-
-## Vector Pipeline Architecture
-
-### Document Processing Flow
-
-1. **File Upload**: Document is uploaded and stored
-2. **Text Extraction**: Text content is extracted from supported file types
-   - **Text/PDF/DOCX**: Direct text extraction
-   - **Images**: OCR processing + AI-powered description generation via Groq API
-3. **Chunking**: Text is split into optimal-sized chunks using LangChain
-4. **Embedding Generation**: Each chunk is converted to a vector using local sentence-transformers
-5. **Vector Storage**: Embeddings are stored in ChromaDB with metadata
-6. **Search Index**: Vector database enables semantic similarity search
-
-### Image Processing Pipeline
-
-For image files, the system uses a sophisticated processing pipeline:
-
-1. **Image Preprocessing**: OpenCV-based enhancement (denoising, contrast adjustment)
-2. **OCR Extraction**: Tesseract OCR for text extraction with multiple PSM modes
-3. **AI Analysis**: Groq API integration for intelligent document analysis and description
-4. **Content Combination**: OCR text + AI description for comprehensive search indexing
-5. **Vector Processing**: Combined content is chunked and embedded like text documents
-
-### Supported File Types
-
-- **Text Files** (`.txt`): Plain text documents
-- **Markdown Files** (`.md`): Markdown-formatted documents
-- **PDF Files** (`.pdf`): Portable Document Format files with text extraction
-- **Word Documents** (`.docx`): Microsoft Word files with structured content extraction
-- **Image Files** (`.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.tiff`): OCR processing with AI-powered description generation
-- **Future Support**: PowerPoint presentations, Excel spreadsheets, and other formats
-
-### Chunking Strategy
-
-- **Chunk Size**: 500 tokens per chunk
-- **Overlap**: 50 tokens between chunks for context preservation
-- **Separators**: Intelligent splitting on paragraphs, sentences, and words
-- **Token Counting**: Uses tiktoken for accurate token measurement
-
-## Database Schema
-
-The application uses SQLite with the following table structure:
-
-```sql
-CREATE TABLE documents (
-    id INTEGER PRIMARY KEY,
-    filename VARCHAR NOT NULL,
-    original_filename VARCHAR NOT NULL,
-    file_path VARCHAR NOT NULL,
-    file_size INTEGER NOT NULL,
-    content_type VARCHAR NOT NULL,
-    upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    description TEXT
-);
-```
-
-### Vector Database (ChromaDB)
-
-- **Collection**: "documents" with cosine similarity
-- **Metadata**: Document ID, chunk index, filename, content type, description
-- **Embeddings**: 1536-dimensional vectors (text-embedding-ada-002 model)
-- **Storage**: Persistent local storage in `./chroma_db/`
-
-## File Storage
-
-- Files are stored in the `uploads/` directory
-- Unique filenames are generated using UUID to prevent conflicts
-- Original filenames are preserved in the database
-- File paths are stored relative to the application root
-
-## Multiple Document Upload
-
-The API supports uploading multiple documents simultaneously:
-
-- **Endpoint**: `POST /api/documents/upload-multiple`
-- **File Limit**: Maximum 10 files per request
-- **Response**: Includes count of successful uploads and any error details
-- **Error Handling**: Individual file failures don't prevent other files from uploading
-- **Transaction Safety**: Each file is processed independently with proper cleanup on failure
-
-**Response Format:**
-```json
-{
-  "message": "Upload completed. 3 files uploaded successfully.",
-  "uploaded_count": 3,
-  "documents": [...],
-  "errors": []
-}
-```
-
-## Semantic Search
-
-### Search Capabilities
-
-- **Natural Language Queries**: Ask questions in plain English
-- **Semantic Understanding**: Finds relevant content even without exact keyword matches
-- **Configurable Results**: Adjustable number of results (default: 5)
-- **Similarity Scoring**: Results ranked by semantic similarity (0.0 to 1.0)
-
-### Search Examples
-
-```bash
-# Find documents about AI
-curl -X POST "http://localhost:8000/api/search" \
-     -H "Content-Type: application/json" \
-     -d '{"query": "What is artificial intelligence?"}'
-
-# Find machine learning content
-curl -X POST "http://localhost:8000/api/search" \
-     -H "Content-Type: application/json" \
-     -d '{"query": "How does machine learning work?", "n_results": 10}'
-```
-
-## Project Structure
+## 🏗️ Architecture
 
 ```
 docMgr/
-├── app.py                    # Main FastAPI application
-├── requirements.txt          # Python dependencies
-├── repository/               # Repository layer
-│   ├── vector_pipeline.py   # Vector processing and search
-│   └── sqlDB.py             # Database operations
-├── models/                   # Data models and DTOs
-├── test_api.py              # API testing script
-├── test_multiple_upload.py  # Multiple upload testing script
-├── test_vector_pipeline.py  # Vector pipeline testing script
-├── test_sentence_transformers.py  # Sentence-transformers testing script
-├── test_pdf_support.py      # PDF testing script
-├── test_docx_support.py     # DOCX testing script
-├── test_image_processing.py # Image processing setup testing script
-├── test_image_upload.py     # Image upload and processing testing script
-├── env_example.txt          # Environment variables template
-├── README.md                # This file
-├── uploads/                 # File storage directory (created automatically)
-├── chroma_db/              # Vector database (created automatically)
-└── documents.db             # SQLite database (created automatically)
+├── app.py                 # FastAPI main application
+├── db.py                  # Database models and setup
+├── models/                # Data models and DTOs
+├── repository/            # Business logic and API handlers
+├── chroma_db/            # Vector database storage
+├── uploads/              # Document file storage
+├── documents.db          # SQLite metadata database
+└── setup_*.py            # Setup and configuration scripts
 ```
 
-## Development
+## 📋 Prerequisites
 
-### Adding New Features
+- **Python 3.8+**
+- **Tesseract OCR** (for image processing)
+- **Groq API key** (for AI image descriptions)
+- **Git** (for cloning)
 
-- **New Endpoints**: Add new route functions in `app.py`
-- **Vector Processing**: Extend `vector_pipeline.py` for new file types
-- **Database Changes**: Modify the `Document` model and run the application to auto-create tables
-- **Validation**: Update Pydantic models for request/response validation
+## 🛠️ Installation & Setup
 
-### Error Handling
+### 1. Clone the Repository
+```bash
+git clone <your-repo-url>
+cd docMgr
+```
 
-The API includes comprehensive error handling:
-- 400: Bad Request (e.g., missing file, unsupported file type)
-- 404: Not Found (e.g., document doesn't exist)
-- 500: Internal Server Error (database/file system issues)
-- 503: Service Unavailable (vector pipeline not available)
+### 2. Create Virtual Environment
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
 
-## Security Considerations
+### 3. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
 
-- Files are stored with unique names to prevent path traversal attacks
-- File content types are validated and stored
-- Database connections are properly managed with dependency injection
-- File operations include existence checks before deletion
-- **Image Processing**: OCR and AI analysis done locally with secure API calls to Groq
-- **API Key Security**: Groq API key stored in environment variables, never in code
+### 4. Environment Configuration
+```bash
+# Copy environment template
+cp env_example.txt .env
 
-## Troubleshooting
+# Edit .env with your settings
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+### 5. Install Tesseract OCR
+
+#### macOS
+```bash
+brew install tesseract
+```
+
+#### Ubuntu/Debian
+```bash
+sudo apt-get install tesseract-ocr
+```
+
+#### Windows
+Download from [UB-Mannheim Tesseract](https://github.com/UB-Mannheim/tesseract/wiki)
+
+#### Automated Setup (Recommended)
+```bash
+python setup_image_processing.py
+```
+
+### 6. Initialize Database
+```bash
+python setup.py
+```
+
+## 🚀 Quick Start
+
+### Start the Server
+```bash
+# Activate virtual environment
+source .venv/bin/activate
+
+# Start FastAPI server
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
+```
+
+The API will be available at `http://localhost:8000`
+
+### API Documentation
+- **Interactive Docs**: `http://localhost:8000/docs`
+- **ReDoc**: `http://localhost:8000/redoc`
+
+## 📚 Sample Data & Testing
+
+### 1. Sample Documents
+The repository includes sample documents for testing:
+- `AI_Text.txt` - Sample AI-related content
+- Test scripts for various file formats
+
+### 2. Test the API
+```bash
+# Test basic functionality
+python test_api.py
+
+# Test specific features
+python test_pdf_support.py
+python test_image_processing.py
+python test_user_management.py
+```
+
+### 3. Sample API Calls
+
+#### Upload a Document
+```bash
+curl -X POST "http://localhost:8000/api/documents/upload" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@sample_document.pdf" \
+  -F "description=Sample document for testing"
+```
+
+#### Search Documents
+```bash
+curl -X POST "http://localhost:8000/api/search" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "artificial intelligence", "n_results": 5}'
+```
+
+#### Get Document Chunks
+```bash
+curl "http://localhost:8000/api/documents/1/chunks"
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GROQ_API_KEY` | Groq API key for AI processing | Required |
+| `UPLOAD_DIR` | Document upload directory | `./uploads` |
+| `CHROMA_PERSIST_DIR` | Vector database directory | `./chroma_db` |
+| `DATABASE_URL` | SQLite database path | `./documents.db` |
+
+### Database Schema
+- **Documents**: Metadata, file paths, processing status
+- **Chunks**: Text segments with vector embeddings
+- **Users**: Authentication and authorization data
+
+## 📖 API Reference
+
+### Core Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/` | API information and health check |
+| `POST` | `/api/documents/upload` | Upload single document |
+| `POST` | `/api/documents/upload-multiple` | Upload multiple documents |
+| `GET` | `/api/documents` | List all documents |
+| `GET` | `/api/documents/{id}` | Get document details |
+| `DELETE` | `/api/documents/{id}` | Delete document |
+| `POST` | `/api/search` | Semantic search across documents |
+| `GET` | `/api/documents/{id}/chunks` | Get document chunks |
+| `GET` | `/api/vector/stats` | Vector database statistics |
+
+### Search Parameters
+- `query`: Search text (required)
+- `n_results`: Number of results (default: 5, max: 20)
+- `threshold`: Similarity threshold (default: 0.5)
+
+## 🧪 Testing
+
+### Run All Tests
+```bash
+# Test API endpoints
+python test_api.py
+
+# Test file format support
+python test_pdf_support.py
+python test_docx_support.py
+python test_image_processing.py
+
+# Test vector pipeline
+python test_vector_pipeline.py
+
+# Test user management
+python test_user_management.py
+```
+
+### Test Coverage
+- ✅ API endpoints
+- ✅ File uploads (PDF, DOCX, TXT, images)
+- ✅ Vector search functionality
+- ✅ User authentication
+- ✅ Image processing and OCR
+
+## 🚨 Troubleshooting
 
 ### Common Issues
 
-1. **Vector pipeline not available:**
-   ```bash
-   # Check your dependencies installation
-   python setup.py
-   
-   # Make sure all required packages are installed
-   pip install -r requirements.txt
-   ```
+#### 1. Tesseract Not Found
+```bash
+# Verify installation
+tesseract --version
 
-2. **Image processing not working:**
-   ```bash
-   # Check if Tesseract is installed
-   tesseract --version
-   
-   # Check if Groq API key is set
-   echo $GROQ_API_KEY
-   
-   # Test image processing setup
-   python test_image_processing.py
-   ```
+# Add to PATH if needed
+export PATH="/usr/local/bin:$PATH"
+```
 
-2. **Port already in use:**
-   ```bash
-   # Kill process using port 8000
-   lsof -ti:8000 | xargs kill -9
-   ```
+#### 2. Vector Search Not Working
+```bash
+# Check ChromaDB directory
+ls -la chroma_db/
 
-3. **Database locked:**
-   - Ensure only one instance of the app is running
-   - Check file permissions on the database file
+# Reinitialize vector store
+python setup.py
+```
 
-4. **Upload directory issues:**
-   - Ensure the application has write permissions to create the `uploads/` directory
+#### 3. Image Processing Errors
+```bash
+# Verify Groq API key
+echo $GROQ_API_KEY
 
-5. **ChromaDB errors:**
-   - Check if the `chroma_db/` directory has proper permissions
-   - Restart the application to reinitialize the vector database
+# Check image file format support
+python test_image_processing.py
+```
 
-### Logs
+### Performance Tips
+- Use SSD storage for better vector search performance
+- Limit concurrent uploads to prevent memory issues
+- Monitor ChromaDB directory size for large document collections
 
-Check the console output for detailed error messages and API request logs.
+## 🤝 Contributing
 
-## Performance Considerations
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
 
-- **Chunk Size**: 500 tokens provides good balance between context and search precision
-- **Embedding Model**: all-MiniLM-L6-v2 offers excellent quality with local processing
-- **Vector Database**: ChromaDB provides fast similarity search with local persistence
-- **Batch Processing**: Multiple uploads are processed sequentially for reliability
+## 📄 License
 
-## Future Enhancements
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-- **Additional File Types**: PowerPoint presentations, Excel spreadsheets, and other Office formats
-- **Advanced Chunking**: Semantic chunking based on content structure
-- **Hybrid Search**: Combine semantic search with keyword-based filtering
-- **User Management**: Multi-user support with document access control
-- **API Rate Limiting**: Protect against abuse and manage resource usage
-- **Caching**: Redis-based caching for frequently accessed embeddings
+## 🆘 Support
 
-## License
+- **Issues**: Create a GitHub issue
+- **Documentation**: Check the `/docs` endpoint when running
+- **Testing**: Use the provided test scripts to verify functionality
 
-This project is open source and available under the MIT License.
+## 🔄 Updates & Maintenance
+
+### Regular Maintenance
+- Monitor ChromaDB directory size
+- Clean up old uploads periodically
+- Update dependencies regularly
+- Backup SQLite database
+
+### Version Updates
+```bash
+# Update dependencies
+pip install -r requirements.txt --upgrade
+
+# Check for breaking changes
+python test_api.py
+```
+
+---
+
+**Ready to get started?** Follow the installation steps above and run `python setup.py` to initialize your system!
